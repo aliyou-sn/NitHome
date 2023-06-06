@@ -5,19 +5,18 @@
 #include <BlynkSimpleEsp32.h>
 #include <analogWrite.h>
 #include "DHT.h"
-#define DHTPIN 13
+#define DHTPIN 26
 #define timeSeconds 10
 #define BLYNK_TEMPLATE_ID "TMPL2y3hal-kS"
 #define BLYNK_TEMPLATE_NAME "NitHome"
 #define BLYNK_AUTH_TOKEN "3BrCtyfozd9DnO5G1HeKAb3ecDzyM7Vi"
-#define TRIGPIN    32  
-#define ECHOPIN    35  
-#define BuzzerPin  5
-#define FullLed   14  
-#define LowLed   26  
+#define TRIGPIN    12
+#define ECHOPIN    14
+#define FullLed   15
+#define LowLed   2
 #define pir 27
-#define light 2
-#define pump 25
+#define light 5
+#define pump 19
 // #define SCREEN_WIDTH 128 // OLED display width, in pixels
 // #define SCREEN_HEIGHT 32 // OLED display height, in pixels
 #define TankLevel    V0
@@ -33,14 +32,14 @@
 // Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 DHT dht(DHTPIN, DHTTYPE);
 
-char ssid[] = "Aliyu";
-char pass[] = "macbooker";
+char ssid[] = "MTN_4G_312D8B";
+char pass[] = "56DB44AF";
 float temp;
 float duration;
 float distance;
 int   waterLevelPer;
 const int EmptyTank = 120;
-const int FullTank = 30;
+const int FullTank = 20;
 int triggerPer =   10;
 int LightInit;
 int LightValue;
@@ -60,7 +59,7 @@ boolean motion = false;
 //   display.print("%");
 //   display.display();
 // }
-BlynkTimer timer; 
+BlynkTimer timer;
 BLYNK_CONNECTED() {
   Blynk.syncVirtual(TankLevel);
   Blynk.syncVirtual(TankDistance);
@@ -70,60 +69,55 @@ BLYNK_CONNECTED() {
   Blynk.syncVirtual(TempState);
 }
 
-void myTimerEvent()
-{
-  Blynk.virtualWrite(V0, millis() / 1000);
-  Blynk.virtualWrite(V1, millis() / 1000);
-  Blynk.virtualWrite(V2, millis() / 1000);
-  Blynk.virtualWrite(V3, millis() / 1000);
-  Blynk.virtualWrite(V4, millis() / 1000);
-  Blynk.virtualWrite(V5, millis() / 1000);
-}
+// void myTimerEvent()
+// {
+//   Blynk.virtualWrite(V0, millis() / 1000);
+//   Blynk.virtualWrite(V1, millis() / 1000);
+//   Blynk.virtualWrite(V2, millis() / 1000);
+//   Blynk.virtualWrite(V3, millis() / 1000);
+//   Blynk.virtualWrite(V4, millis() / 1000);
+//   Blynk.virtualWrite(V5, millis() / 1000);
+// }
 
 
-void PumpControl(void *parameter){
-  for(;;){
+void PumpControl(){
+  // for(;;){
   digitalWrite(TRIGPIN, LOW);
-  delayMicroseconds(2);
+  delayMicroseconds(5);
   digitalWrite(TRIGPIN, HIGH);
-  delayMicroseconds(20);
+  delayMicroseconds(10);
   digitalWrite(TRIGPIN, LOW);
   duration = pulseIn(ECHOPIN, HIGH);
   distance = ((duration / 2) * 0.343);
-  if (distance >= FullTank && distance <= EmptyTank ){
-    waterLevelPer = map((int)distance ,EmptyTank, FullTank, 0, 100);
+  if (distance >= (FullTank-10) && distance <= EmptyTank ){
+    waterLevelPer = map(distance ,EmptyTank, FullTank, 0, 100);
+    Serial.print(waterLevelPer);
+    Serial.println(" %");
+
     // displayData(waterLevelPer);
     Blynk.virtualWrite(TankLevel, waterLevelPer);
     Blynk.virtualWrite(TankDistance, (String(distance) + " mm"));
     if(waterLevelPer < 20){
       digitalWrite(LowLed, HIGH);
       digitalWrite(FullLed,LOW);
+      digitalWrite(pump,HIGH);
+      Blynk.virtualWrite(Waterpump, "ON");
     }
-    if(waterLevelPer > 50 && waterLevelPer < 100){
+    if(waterLevelPer > 60){
       digitalWrite(FullLed,HIGH);
       digitalWrite(LowLed,LOW);
     }
-    
-    if (waterLevelPer > triggerPer){
-      digitalWrite(LowLed, LOW);
-      } 
-} 
-  if (distance >= EmptyTank){
-      digitalWrite(pump,HIGH);
-      Blynk.virtualWrite(Waterpump, "ON");
-      }
-    
-  if (distance <= FullTank){
-    digitalWrite(pump,LOW);
-    Blynk.virtualWrite(Waterpump, "OFF");
-  }  
-  
+
+    if (waterLevelPer >=80 ){
+      digitalWrite(pump,LOW);
+      Blynk.virtualWrite(Waterpump, "OFF");
+    }
+  }
   Serial.print("Distance: ");
   Serial.print(distance);
   Serial.println(" mm");
-  }
-
-  vTaskDelay(200 / portTICK_PERIOD_MS);
+  delay(300);
+  
 }
 
 void IRAM_ATTR detectsMovement() {
@@ -132,15 +126,13 @@ void IRAM_ATTR detectsMovement() {
   lastTrigger = millis();
 }
 
-void MeasureTemp(void *parameter){
-  for(;;){
+void MeasureTemp(){
   temp = dht.readTemperature();
   Blynk.virtualWrite(TempState, temp);
   Serial.print("Temperature : ");
   Serial.println(temp);
-  vTaskDelay(500 / portTICK_PERIOD_MS);
+delay(500);
   
-  }
 }
 
 // void AutoLight(void *parameter){
@@ -162,10 +154,9 @@ void setup()
   // Debug console
   Serial.begin(115200);
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
-  timer.setInterval(1000L, myTimerEvent);
+  // timer.setInterval(1000L, myTimerEvent);
   dht.begin();
-  xTaskCreate(PumpControl,"Pump comtro1", 5000, NULL, 2, NULL);
-  xTaskCreate(MeasureTemp,"Temperature ", 8000, NULL, 3, NULL);
+  // xTaskCreate(PumpControl,"Temperature ", 8000, NULL, 3, NULL);
   // xTaskCreate(AutoLight,"Auto light ", 5000, NULL, 3, NULL);
   attachInterrupt(digitalPinToInterrupt(pir), detectsMovement, RISING);
   pinMode(pir, INPUT_PULLUP);
@@ -173,9 +164,9 @@ void setup()
   pinMode(TRIGPIN, OUTPUT);
   pinMode(FullLed, OUTPUT);
   pinMode(LowLed, OUTPUT);
-  pinMode(BuzzerPin, OUTPUT);
+  // pinMode(BuzzerPin, OUTPUT);
   pinMode(pump, OUTPUT);
-  digitalWrite(BuzzerPin, LOW);
+  // digitalWrite(BuzzerPin, LOW);
   pinMode(light, OUTPUT);
   pinMode(StreetLight, OUTPUT);
   digitalWrite(light, LOW);
@@ -183,18 +174,18 @@ void setup()
   //   Serial.println(F("SSD1306 allocation failed"));
   //   for(;;);
   // }
-  // delay(1000);  
+  // delay(1000);
   // display.setTextSize(1);
   // display.setTextColor(WHITE);
   // display.clearDisplay();
-  LightInit = analogRead(ldr);
-  
+  // LightInit = analogRead(ldr);
+
 }
 
 void loop()
 {
-  // MeasureTemp();
-  // PumpControl();
+  MeasureTemp();
+  PumpControl();
   Blynk.run();
   timer.run();
   now = millis();
